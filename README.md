@@ -1,8 +1,18 @@
-# Village Band & Music School App
+# Archivo Sonoro
 
-A Java-first portfolio application for managing a music band and its associated school, with a Spring Boot REST API and an implemented Angular web interface. Musicians access their events and sheet music; administrators manage users, groups, content and permissions.
+A shared home for a music band's events, sheet music and school activity. **Archivo Sonoro** is a Java-first portfolio application with a Spring Boot REST API and an Angular interface: public information for visitors, a workspace for musicians and administration tools for organizers.
 
-This is the **generic learning and portfolio version**, not a deployed client system or a claim of production readiness. A future adaptation for a real band or school would be a separate step, with its own branding, data and deployment decisions. The interface currently uses Spanish copy and example branding.
+This is a **portfolio project, not a production deployment**. The interface is in Spanish; contact details and social links are placeholders. No hosted demo, real organization affiliation or production readiness is claimed. Start with the code tour below, or follow the [production-readiness checklist](PRODUCTION_READINESS.md) for the remaining delivery work.
+
+## Experience by role
+
+| Role | Implemented surface |
+| --- | --- |
+| Visitor | News, public events, gallery, videos, courses and contact form |
+| Musician | Account activation and recovery, private agenda, event details and accessible sheet music |
+| Administrator | Users and activation links, groups and membership, calendar, collections and sheets, access grants, public content and audit history; operations depend on permissions |
+
+These are implemented screens and API paths, not a completed role-by-operation runtime audit.
 
 ## What is implemented
 
@@ -32,7 +42,7 @@ The backend is a **single Spring Boot application organized by feature**, with c
 - `backend/` — Java 21 and Spring Boot REST API with security, PostgreSQL persistence, mail notifications, file storage, and Testcontainers integration tests.
 - `frontend/` — Angular SPA with public pages and guarded `MUSICIAN` and `ADMIN` areas. Development `/api` requests use `frontend/proxy.conf.json`.
 - `docker-compose.yml` — local PostgreSQL and Mailpit services.
-- `postman/` — collection for manual API exploration.
+- `postman/` — collection for manual API exploration; its legacy bootstrap/permission notes need review and are not a supported provisioning guide.
 
 ## Requirements
 
@@ -43,7 +53,7 @@ The backend is a **single Spring Boot application organized by feature**, with c
 
 ## Run locally
 
-Run all commands from the repository root.
+Run all commands from your local repository root (currently `music-band-app/`). The existing remote remains [RoockDev/music-band-app](https://github.com/RoockDev/music-band-app); renaming it to `archivo-sonoro` is pending. The product name does not require renaming your local folder, database or storage directory.
 
 ### 1. Start PostgreSQL and Mailpit
 
@@ -145,6 +155,8 @@ Open <http://localhost:4200>. Angular proxies `/api` requests to the backend, pr
 
 A fresh database has no seeded users or demo content. There is currently **no supported first-administrator bootstrap command** and no published default credentials. Existing administrators can manage subsequent accounts, but this does not solve first-time provisioning. Starting the services lets you inspect the public interface; it does not by itself provide access to private areas. A safe initial provisioning workflow is still needed for a self-service demo.
 
+For subsequent accounts, user creation returns a one-time activation token and the admin screen displays its link for secure manual delivery. Activation email delivery is not wired into user creation. Do not publish those links or use personal data in a portfolio demo.
+
 ## Verification
 
 ```bash
@@ -161,6 +173,8 @@ mvn -f backend/pom.xml test
 
 The complete backend suite uses Testcontainers and therefore requires a running Docker daemon.
 
+**Evidence boundary:** frontend checks do not prove backend integration or browser workflows. This rebrand does not include a backend test run (Docker was unavailable) or real-browser E2E verification. Older backend/API test counts are historical, not current release evidence. Record fresh results against the candidate revision using the [checklist](PRODUCTION_READINESS.md).
+
 ## Current scope and limitations
 
 - No hosted demo or production deployment is provided here. Hosting, backups and operational monitoring require separate work.
@@ -169,4 +183,6 @@ The complete backend suite uses Testcontainers and therefore requires a running 
 
 ## Branding
 
-Installation-specific name, contact details, colors, social links, and asset paths live in `frontend/src/app/core/config/brand.config.ts`. Replace the corresponding SVG assets in `frontend/public/brand/` when adapting the application for another organization.
+Installation-specific name, contact details, colors, social links, and asset paths live in `frontend/src/app/core/config/brand.config.ts`. Replace the corresponding SVG assets in `frontend/public/brand/` when adapting the application for another organization. The texture is currently hardcoded in `frontend/src/styles.scss`; changing `images.texture` alone has no effect (tracked in the checklist).
+
+Legacy `com.banda` Java packages, Maven artifact coordinates, `banda` database/user/volume names, storage paths and Postman filenames are intentionally retained to avoid breaking existing installations. They are internal compatibility identifiers, not the product brand.

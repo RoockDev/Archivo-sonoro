@@ -14,8 +14,8 @@
   <groupId>com.banda</groupId>
   <artifactId>banda-app-backend</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>banda-app-backend</name>
-  <description>Village Band + Music School web app backend (REST API)</description>
+  <name>Archivo Sonoro Backend</name>
+  <description>Archivo Sonoro music band and school management REST API</description>
 
   <properties>
     <java.version>21</java.version>

@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: banda-app-backend
+    name: archivo-sonoro-backend
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/banda}
