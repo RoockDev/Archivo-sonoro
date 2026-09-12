@@ -291,13 +291,41 @@ describe('AdminService', () => {
 });
 
 describe('adminErrorMessage', () => {
-  it('explains which management permission is missing on a forbidden response', () => {
+  it('does not diagnose an unspecified forbidden response as a missing permission or CSRF', () => {
     const error = new HttpErrorResponse({ status: 403, statusText: 'Forbidden' });
 
     expect(adminErrorMessage(error, 'usuarios')).toBe(
-      'Tu cuenta no tiene el permiso necesario para gestionar usuarios.',
+      'La solicitud para gestionar usuarios ha sido rechazada. Comprueba tu sesión y consulta con un administrador si el problema continúa.',
     );
   });
+
+  it.each([
+    [401, null, 'Inicia sesión'],
+    [403, { error: 'Forbidden' }, 'Comprueba tu sesión'],
+    [409, { error: 'Email already in use' }, 'Utiliza otro correo'],
+    [409, { code: 'CONCURRENT_MODIFICATION' }, 'Recarga los datos y revisa los cambios'],
+    [400, { error: 'Guardian contact is required for minor accounts' }, 'contacto del tutor'],
+    [400, { error: 'Consent on file is required for minor accounts' }, 'consentimiento'],
+    [
+      400,
+      { error: 'allScope cannot be combined with group or musician grants' },
+      'alcance global o destinatarios',
+    ],
+  ])('maps the verified backend contract safely (%s, %j)', (status, error, expected) => {
+    expect(adminErrorMessage(new HttpErrorResponse({ status, error }), 'usuarios')).toContain(
+      expected,
+    );
+  });
+
+  it.each([null, '<script>private details</script>', { error: 'private details' }, { code: 123 }])(
+    'uses corrective conflict feedback without exposing unknown response bodies (%j)',
+    (error) => {
+      const message = adminErrorMessage(new HttpErrorResponse({ status: 409, error }), 'usuarios');
+      expect(message).toContain('Revisa los datos y las restricciones');
+      expect(message).not.toContain('private details');
+      expect(message).not.toContain('vuelve a intentarlo');
+    },
+  );
 
   it('distinguishes missing targets from state conflicts', () => {
     const missing = new HttpErrorResponse({ status: 404, statusText: 'Not Found' });

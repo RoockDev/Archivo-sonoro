@@ -216,8 +216,8 @@ export class AdminArchivePage implements OnInit {
       return;
     }
     const value = this.uploadForm.getRawValue();
-    const groupIds = parseIdList(value.groupIds);
-    const musicianIds = parseIdList(value.musicianIds);
+    const groupIds = value.allScope ? [] : parseIdList(value.groupIds);
+    const musicianIds = value.allScope ? [] : parseIdList(value.musicianIds);
     if (groupIds === null || musicianIds === null) {
       this.uploadError.set(
         'Los alcances deben contener identificadores positivos separados por comas.',
@@ -268,8 +268,8 @@ export class AdminArchivePage implements OnInit {
     this.uploadError.set(null);
     this.scoreNotice.set(null);
     const value = this.uploadForm.getRawValue();
-    const groupIds = parseIdList(value.groupIds);
-    const musicianIds = parseIdList(value.musicianIds);
+    const groupIds = value.allScope ? [] : parseIdList(value.groupIds);
+    const musicianIds = value.allScope ? [] : parseIdList(value.musicianIds);
     if (groupIds === null || musicianIds === null) {
       this.uploadError.set(
         'Los alcances deben contener identificadores positivos separados por comas.',

@@ -338,15 +338,35 @@ export function adminErrorMessage(error: unknown, area: string): string {
     return 'Se ha producido un error inesperado. Inténtalo de nuevo.';
   }
 
+  const body: unknown = error.error;
+  const detail = typeof body === 'object' && body !== null && 'error' in body ? body.error : null;
+
   switch (error.status) {
     case 400:
+      // Match only known backend messages; never display arbitrary response text.
+      switch (detail) {
+        case 'Guardian contact is required for minor accounts':
+          return 'Indica el contacto del tutor para la cuenta de un menor.';
+        case 'Consent on file is required for minor accounts':
+          return 'Es necesario registrar el consentimiento para la cuenta de un menor.';
+        case 'allScope cannot be combined with group or musician grants':
+          return 'Selecciona alcance global o destinatarios concretos, no ambos.';
+      }
       return 'Revisa los datos introducidos antes de continuar.';
+    case 401:
+      return 'Inicia sesión para continuar con la operación.';
     case 403:
-      return `Tu cuenta no tiene el permiso necesario para gestionar ${area}.`;
+      return `La solicitud para gestionar ${area} ha sido rechazada. Comprueba tu sesión y consulta con un administrador si el problema continúa.`;
     case 404:
       return 'El registro ya no existe o no está disponible.';
     case 409:
-      return 'La operación entra en conflicto con el estado actual. Actualiza los datos y vuelve a intentarlo.';
+      if (isConcurrentModification(error)) {
+        return 'Otra persona modificó el registro. Recarga los datos y revisa los cambios antes de guardar.';
+      }
+      if (detail === 'Email already in use') {
+        return 'El correo electrónico ya está en uso. Utiliza otro correo o edita la cuenta existente.';
+      }
+      return 'La operación entra en conflicto con el estado actual. Revisa los datos y las restricciones antes de continuar.';
     case 503:
       return 'El servicio no está disponible en este momento. Inténtalo más tarde.';
     default:

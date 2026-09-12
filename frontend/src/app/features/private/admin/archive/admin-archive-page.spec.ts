@@ -20,6 +20,102 @@ describe('AdminArchivePage collection management', () => {
     http.verify();
   });
 
+  it.each([false, true])('prevents global scope reentry in the editor (editing=%s)', (editing) => {
+    const fixture = TestBed.createComponent(AdminArchivePage);
+    fixture.detectChanges();
+    http.expectOne('/api/collections').flush([collection()]);
+    http.expectOne('/api/sheet-music/admin').flush([]);
+    const component = fixture.componentInstance as any;
+    if (editing) component.editScore(sheetMusic({ allScope: true }));
+    fixture.detectChanges();
+    const checkbox = fixture.nativeElement.querySelector(
+      '[formControlName="allScope"]',
+    ) as HTMLInputElement;
+    if (editing) {
+      expect(fixture.nativeElement.querySelector('#score-groups')).toBeNull();
+      checkbox.click();
+      fixture.detectChanges();
+    }
+    const enterIds = () => {
+      for (const id of ['score-groups', 'score-musicians']) {
+        const input = fixture.nativeElement.querySelector(`#${id}`) as HTMLInputElement;
+        input.value = '5, 8';
+        input.dispatchEvent(new Event('input'));
+      }
+    };
+    enterIds();
+    checkbox.click();
+    fixture.detectChanges();
+    expect(component.uploadForm.getRawValue()).toMatchObject({ groupIds: '', musicianIds: '' });
+    expect(fixture.nativeElement.querySelector('#score-groups')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#score-musicians')).toBeNull();
+    checkbox.click();
+    fixture.detectChanges();
+    enterIds();
+    expect(component.uploadForm.getRawValue()).toMatchObject({
+      groupIds: '5, 8',
+      musicianIds: '5, 8',
+    });
+    checkbox.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#score-groups')).toBeNull();
+    component.cancelScoreEdit();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#score-groups')).not.toBeNull();
+  });
+
+  it.each([
+    [false, false, '5, 5, 8'],
+    [false, true, '5, 5, 8'],
+    [true, false, '5, 5, 8'],
+    [true, true, '5, 5, 8'],
+    [false, true, 'invalid'],
+    [true, true, 'invalid'],
+  ] as const)(
+    'serializes valid scope through HTTP (editing=%s, global=%s, IDs=%s)',
+    (editing, allScope, groupIds) => {
+      const component = TestBed.createComponent(AdminArchivePage).componentInstance as any;
+      if (editing) component.editScore(sheetMusic({ version: 4 }));
+      component.uploadForm.patchValue({ title: 'Suite', collectionId: 2, allScope });
+      component.globalScopeChanged();
+      // Stale or programmatically reentered values must never override global scope.
+      component.uploadForm.patchValue({ groupIds, musicianIds: '9' });
+      const file = new File(['score'], 'suite.pdf', { type: 'application/pdf' });
+      component.selectedFile.set(file);
+      component.saveScore();
+      http.expectOne('/api/auth/csrf').flush('');
+      const request = http.expectOne(editing ? '/api/sheet-music/10' : '/api/sheet-music');
+      if (editing) {
+        expect(request.request.method).toBe('PUT');
+        expect(request.request.body).toMatchObject({
+          allScope,
+          groupIds: allScope ? [] : [5, 8],
+          musicianIds: allScope ? [] : [9],
+          version: 4,
+        });
+        expect(request.request.body.file).toBeUndefined();
+      } else {
+        expect(request.request.method).toBe('POST');
+        expect(request.request.body.get('allScope')).toBe(String(allScope));
+        expect(request.request.body.getAll('groupIds')).toEqual(allScope ? [] : ['5', '8']);
+        expect(request.request.body.getAll('musicianIds')).toEqual(allScope ? [] : ['9']);
+        expect(request.request.body.get('file')).toBe(file);
+      }
+      request.flush(sheetMusic({ allScope }));
+      expect(component.uploadForm.controls.allScope.value).toBe(false);
+    },
+  );
+
+  it.each([false, true])('still rejects malformed explicit IDs (editing=%s)', (editing) => {
+    const component = TestBed.createComponent(AdminArchivePage).componentInstance as any;
+    if (editing) component.editScore(sheetMusic());
+    component.uploadForm.patchValue({ title: 'Suite', collectionId: 2, groupIds: '-1' });
+    component.selectedFile.set(new File(['score'], 'suite.pdf', { type: 'application/pdf' }));
+    component.saveScore();
+    expect(component.uploadError()).toContain('identificadores positivos');
+    http.expectNone('/api/auth/csrf');
+  });
+
   it('rejects metadata longer than the backend column limits', () => {
     const component = TestBed.createComponent(AdminArchivePage).componentInstance as any;
     component.collectionForm.controls.name.setValue('c'.repeat(256));

@@ -122,16 +122,18 @@
           (change)="globalScopeChanged()"
         /> Disponible para toda la banda</label
       >
-      <div class="scope-grid">
-        <div class="field">
-          <label for="score-groups">IDs de grupos</label
-          ><input id="score-groups" formControlName="groupIds" placeholder="2, 5" />
+      @if (!uploadForm.controls.allScope.value) {
+        <div class="scope-grid">
+          <div class="field">
+            <label for="score-groups">IDs de grupos</label
+            ><input id="score-groups" formControlName="groupIds" placeholder="2, 5" />
+          </div>
+          <div class="field">
+            <label for="score-musicians">IDs de músicos</label
+            ><input id="score-musicians" formControlName="musicianIds" placeholder="7, 9" />
+          </div>
         </div>
-        <div class="field">
-          <label for="score-musicians">IDs de músicos</label
-          ><input id="score-musicians" formControlName="musicianIds" placeholder="7, 9" />
-        </div>
-      </div>
+      }
       @if (uploadError()) {
         <p class="form-message error" role="alert">{{ uploadError() }}</p>
       }
