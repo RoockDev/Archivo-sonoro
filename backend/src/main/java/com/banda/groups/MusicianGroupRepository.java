@@ -16,6 +16,8 @@ public interface MusicianGroupRepository extends JpaRepository<MusicianGroup, Lo
      * guard (Section 4 "Delete in-use group" scenario) before attempting the delete. */
     boolean existsByGroup(Group group);
 
+    long countByGroup(Group group);
+
     /**
      * Fetch-joins {@code musician} explicitly: {@link GroupService#listMembers} returns
      * plain {@code UserAccount} entities out of its own {@code @Transactional(readOnly =
@@ -27,6 +29,8 @@ public interface MusicianGroupRepository extends JpaRepository<MusicianGroup, Lo
     List<MusicianGroup> findByGroup(@Param("group") Group group);
 
     List<MusicianGroup> findByMusician(UserAccount musician);
+
+    long countByMusician(UserAccount musician);
 
     /**
      * Derived delete queries run outside {@code SimpleJpaRepository}'s own transactional

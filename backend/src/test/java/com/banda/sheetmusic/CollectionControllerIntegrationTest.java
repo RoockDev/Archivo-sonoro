@@ -31,11 +31,14 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Section 6 minimal create-only surface (reliability fix: before this PR, no
+ * Section 6 minimal list/create surface (reliability fix: before this PR, no
  * {@code CollectionController} existed anywhere, so the upload flow's hard-required
  * {@code collectionId} had no real end-to-end path to obtain one). Covers the RBAC gate
  * (MANAGE_SHEET_MUSIC, Sec.2/Sec.10) and the audit trail (Sec.11), mirroring
@@ -61,6 +64,9 @@ class CollectionControllerIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private SheetMusicRepository sheetMusicRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -155,6 +161,96 @@ class CollectionControllerIntegrationTest extends IntegrationTestBase {
                         .contentType("application/json")
                         .content("{\"name\":\"Musician Attempt\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listReturnsCollectionMetadataToAnAdminHoldingManageSheetMusicPermission() throws Exception {
+        UserAccount admin = persistActiveAdmin("admin-collection-list@example.com", "AdminPass1!");
+        adminPermissionRepository.saveAndFlush(new AdminPermission(admin, Permission.MANAGE_SHEET_MUSIC));
+        Collection collection = collectionRepository.saveAndFlush(
+                new Collection("Catalog Collection", "Catalog description", FIXED_NOW));
+
+        Cookie csrf = fetchCsrfCookie();
+        Cookie accessToken = loginAndGetAccessTokenCookie("admin-collection-list@example.com", "AdminPass1!", csrf);
+
+        mockMvc.perform(get("/api/collections").cookie(accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + collection.getId() + ")].name").value("Catalog Collection"))
+                .andExpect(jsonPath("$[?(@.id == " + collection.getId() + ")].description")
+                        .value("Catalog description"));
+    }
+
+    @Test
+    void listIsForbiddenToAnAdminLackingManageSheetMusicPermission() throws Exception {
+        persistActiveAdmin("admin-collection-list-no-permission@example.com", "AdminPass1!");
+        Cookie csrf = fetchCsrfCookie();
+        Cookie accessToken = loginAndGetAccessTokenCookie(
+                "admin-collection-list-no-permission@example.com", "AdminPass1!", csrf);
+
+        mockMvc.perform(get("/api/collections").cookie(accessToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listIsForbiddenToAMusicianByTheAdminRoleGate() throws Exception {
+        UserAccount musician = new UserAccount(
+                "musician-collection-list@example.com", UserRole.MUSICIAN, UserStatus.ACTIVE, FIXED_NOW);
+        musician.setPasswordHash(passwordEncoder.encode("MusicianPass1!"));
+        userAccountRepository.saveAndFlush(musician);
+        Cookie csrf = fetchCsrfCookie();
+        Cookie accessToken = loginAndGetAccessTokenCookie(
+                "musician-collection-list@example.com", "MusicianPass1!", csrf);
+
+        mockMvc.perform(get("/api/collections").cookie(accessToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateUsesVersionAndDeleteIsBlockedUntilTheCollectionIsEmpty() throws Exception {
+        UserAccount admin = persistActiveAdmin("admin-collection-lifecycle@example.com", "AdminPass1!");
+        adminPermissionRepository.saveAndFlush(new AdminPermission(admin, Permission.MANAGE_SHEET_MUSIC));
+        Collection collection = collectionRepository.saveAndFlush(new Collection("Original", null, FIXED_NOW));
+        Long originalVersion = collection.getVersion();
+        Cookie csrf = fetchCsrfCookie();
+        Cookie accessToken = loginAndGetAccessTokenCookie(
+                "admin-collection-lifecycle@example.com", "AdminPass1!", csrf);
+
+        MvcResult update = mockMvc.perform(put("/api/collections/" + collection.getId())
+                        .cookie(csrf, accessToken)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType("application/json")
+                        .content("{\"name\":\"Renamed\",\"description\":\"Updated\",\"version\":"
+                                + originalVersion + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Renamed"))
+                .andReturn();
+        Number updatedVersion = JsonPath.read(update.getResponse().getContentAsString(), "$.version");
+
+        mockMvc.perform(put("/api/collections/" + collection.getId())
+                        .cookie(csrf, accessToken)
+                        .header("X-XSRF-TOKEN", csrf.getValue())
+                        .contentType("application/json")
+                        .content("{\"name\":\"Stale\",\"version\":" + originalVersion + "}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONCURRENT_MODIFICATION"));
+
+        Collection managed = collectionRepository.findById(collection.getId()).orElseThrow();
+        SheetMusic score = sheetMusicRepository.saveAndFlush(new SheetMusic("Score", null, managed, "key-"
+                + collection.getId(), "score.pdf", "application/pdf", true, FIXED_NOW));
+
+        mockMvc.perform(delete("/api/collections/" + collection.getId())
+                        .queryParam("version", updatedVersion.toString())
+                        .cookie(csrf, accessToken)
+                        .header("X-XSRF-TOKEN", csrf.getValue()))
+                .andExpect(status().isConflict());
+
+        sheetMusicRepository.delete(score);
+        sheetMusicRepository.flush();
+        mockMvc.perform(delete("/api/collections/" + collection.getId())
+                        .queryParam("version", updatedVersion.toString())
+                        .cookie(csrf, accessToken)
+                        .header("X-XSRF-TOKEN", csrf.getValue()))
+                .andExpect(status().isNoContent());
     }
 
     @TestConfiguration

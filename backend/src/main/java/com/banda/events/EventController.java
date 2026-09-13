@@ -1,6 +1,9 @@
 package com.banda.events;
 
+import com.banda.events.dto.AdminEventResponse;
+import com.banda.events.dto.AdminEventTargetsResponse;
 import com.banda.events.dto.CreateEventRequest;
+import com.banda.events.dto.EventCancellationResponse;
 import com.banda.events.dto.EventResponse;
 import com.banda.events.dto.UpdateEventRequest;
 import com.banda.users.UserAccount;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -35,6 +39,8 @@ import java.util.Map;
  * comment on {@code /api/events/**}, mirroring {@code /api/sheet-music/**}'s identical
  * "authenticated, service-layer-authorized" shape). {@link com.banda.security.PermissionDeniedException}
  * is handled globally by {@code GlobalExceptionHandler}.
+ * {@link #listManaged} is the separate permission-gated admin catalog so management does not
+ * weaken those musician-facing scope rules.
  *
  * <p>No delete endpoint: cancellation ({@link #cancel}) is the spec's own non-destructive
  * lifecycle end-state for an event — see {@link EventService}'s own Javadoc.
@@ -63,6 +69,18 @@ public class EventController {
         return eventService.list(actor).stream().map(EventResponse::from).toList();
     }
 
+    /** Complete management catalog for admins holding {@code MANAGE_EVENTS}. */
+    @GetMapping("/admin")
+    public List<AdminEventResponse> listManaged(@AuthenticationPrincipal UserAccount actor) {
+        return eventService.listManaged(actor).stream().map(AdminEventResponse::from).toList();
+    }
+
+    /** Valid scope targets for the event editor, without coupling it to other admin permissions. */
+    @GetMapping("/admin/targets")
+    public AdminEventTargetsResponse listTargets(@AuthenticationPrincipal UserAccount actor) {
+        return AdminEventTargetsResponse.from(eventService.listTargets(actor));
+    }
+
     /** IDOR-safe single fetch: {@link EventService#get} throws the exact same 404
      * ({@link EventNotFoundException}) whether the id doesn't exist or {@code actor} simply
      * cannot access it. */
@@ -81,9 +99,10 @@ public class EventController {
     /** Section 7 "Cancellation" scenario: non-destructive, idempotent — see
      * {@link EventService#cancel}'s own Javadoc. */
     @PostMapping("/{id}/cancel")
-    public EventResponse cancel(@AuthenticationPrincipal UserAccount actor, @PathVariable Long id) {
-        Event cancelled = eventService.cancel(actor, id);
-        return EventResponse.from(cancelled);
+    public EventCancellationResponse cancel(@AuthenticationPrincipal UserAccount actor, @PathVariable Long id,
+                                            @RequestParam Long version) {
+        Event cancelled = eventService.cancel(actor, id, version);
+        return EventCancellationResponse.from(cancelled);
     }
 
     @ExceptionHandler(EventNotFoundException.class)
@@ -103,6 +122,8 @@ public class EventController {
 
     @ExceptionHandler(ConcurrentEventModificationException.class)
     public ResponseEntity<Map<String, String>> handleConcurrentModification(ConcurrentEventModificationException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "code", "CONCURRENT_MODIFICATION",
+                "error", e.getMessage()));
     }
 }

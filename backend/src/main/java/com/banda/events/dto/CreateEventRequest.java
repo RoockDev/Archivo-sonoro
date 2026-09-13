@@ -1,7 +1,10 @@
 package com.banda.events.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.util.List;
@@ -15,13 +18,22 @@ import java.util.List;
  * {@code @RequestBody}, not a multipart {@code @ModelAttribute} bound from an HTML checkbox.
  */
 public record CreateEventRequest(
-        @NotBlank String title,
-        String description,
-        String location,
+        @NotBlank @Size(max = 255) String title,
+        @Size(max = 255) String description,
+        @Size(max = 255) String location,
         @NotNull Instant startsAt,
         boolean isPublic,
         boolean allScope,
-        List<Long> groupIds,
-        List<Long> musicianIds
+        List<@NotNull @Positive Long> groupIds,
+        List<@NotNull @Positive Long> musicianIds
 ) {
+
+    @AssertTrue(message = "allScope cannot be combined with group or musician targets")
+    public boolean isScopeValid() {
+        return !allScope || (isEmpty(groupIds) && isEmpty(musicianIds));
+    }
+
+    private static boolean isEmpty(List<Long> ids) {
+        return ids == null || ids.isEmpty();
+    }
 }

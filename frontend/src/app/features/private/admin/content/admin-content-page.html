@@ -1,0 +1,307 @@
+<header class="admin-heading">
+  <div>
+    <p class="eyebrow">Administración</p>
+    <h1>Contenido</h1>
+  </div>
+  <p>Gestiona noticias, vídeos, cursos y galerías públicas con control de cambios concurrentes.</p>
+</header>
+
+@if (notice()) {
+  <p class="global-notice" role="status">{{ notice() }}</p>
+}
+
+<div class="content-workbench">
+  <details open>
+    <summary><span>01</span> Noticias</summary>
+    <form [formGroup]="newsForm" (ngSubmit)="saveNews()">
+      <h2>{{ editingNews() ? 'Editar noticia' : 'Nueva noticia' }}</h2>
+      <div class="field">
+        <label for="news-title">Título</label><input id="news-title" formControlName="title" />
+      </div>
+      <div class="field">
+        <label for="news-body">Contenido</label
+        ><textarea id="news-body" formControlName="body"></textarea>
+      </div>
+      @if (error('news')) {
+        <p class="form-message error" role="alert">{{ error('news') }}</p>
+      }
+      <div class="form-actions">
+        <button class="button" type="submit" [disabled]="saving() !== null">
+          {{
+            saving() === 'news'
+              ? 'Guardando…'
+              : editingNews()
+                ? 'Guardar cambios'
+                : 'Publicar noticia'
+          }}
+        </button>
+        @if (editingNews()) {
+          <button class="text-button" type="button" (click)="cancelNewsEdit()">
+            Cancelar edición
+          </button>
+        }
+      </div>
+    </form>
+    <ul class="management-list" aria-label="Noticias publicadas">
+      @for (item of news(); track item.id) {
+        <li>
+          <div>
+            <strong>{{ item.title }}</strong
+            ><small>Actualizada {{ item.updatedAt }}</small>
+          </div>
+          <div class="record-actions">
+            <button type="button" (click)="editNews(item)" [attr.data-edit-news-id]="item.id">
+              Editar</button
+            ><button class="danger" type="button" (click)="deleteNews(item)">Eliminar</button>
+          </div>
+        </li>
+      } @empty {
+        <li class="empty-row">No hay noticias publicadas.</li>
+      }
+    </ul>
+  </details>
+
+  <details>
+    <summary><span>02</span> Vídeos</summary>
+    <form [formGroup]="videoForm" (ngSubmit)="saveVideo()">
+      <h2>{{ editingVideo() ? 'Editar vídeo' : 'Nuevo vídeo' }}</h2>
+      <div class="field">
+        <label for="video-title">Título</label><input id="video-title" formControlName="title" />
+      </div>
+      <div class="field">
+        <label for="video-url">URL</label><input id="video-url" type="url" formControlName="url" />
+      </div>
+      @if (error('video')) {
+        <p class="form-message error" role="alert">{{ error('video') }}</p>
+      }
+      <div class="form-actions">
+        <button class="button" type="submit" [disabled]="saving() !== null">
+          {{
+            saving() === 'video'
+              ? 'Guardando…'
+              : editingVideo()
+                ? 'Guardar cambios'
+                : 'Publicar vídeo'
+          }}
+        </button>
+        @if (editingVideo()) {
+          <button class="text-button" type="button" (click)="cancelVideoEdit()">
+            Cancelar edición
+          </button>
+        }
+      </div>
+    </form>
+    <ul class="management-list" aria-label="Vídeos publicados">
+      @for (item of videos(); track item.id) {
+        <li>
+          <div>
+            <strong>{{ item.title }}</strong
+            ><small>{{ item.url }}</small>
+          </div>
+          <div class="record-actions">
+            <button type="button" (click)="editVideo(item)">Editar</button
+            ><button class="danger" type="button" (click)="deleteVideo(item)">Eliminar</button>
+          </div>
+        </li>
+      } @empty {
+        <li class="empty-row">No hay vídeos publicados.</li>
+      }
+    </ul>
+  </details>
+
+  <details>
+    <summary><span>03</span> Cursos</summary>
+    <form [formGroup]="courseForm" (ngSubmit)="saveCourse()">
+      <h2>{{ editingCourse() ? 'Editar curso' : 'Nuevo curso' }}</h2>
+      <div class="field">
+        <label for="course-title">Título</label><input id="course-title" formControlName="title" />
+      </div>
+      <div class="field">
+        <label for="course-description">Descripción</label
+        ><textarea id="course-description" formControlName="description"></textarea>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="course-start">Inicio</label
+          ><input id="course-start" type="date" formControlName="startDate" />
+        </div>
+        <div class="field">
+          <label for="course-end">Fin</label
+          ><input id="course-end" type="date" formControlName="endDate" />
+        </div>
+        <div class="field">
+          <label for="course-price">Precio</label
+          ><input id="course-price" type="number" min="0" step="0.01" formControlName="price" />
+        </div>
+        <div class="field">
+          <label for="course-age">Edad mínima</label
+          ><input id="course-age" type="number" min="0" formControlName="minimumAge" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="course-instrument">Instrumento</label
+        ><input id="course-instrument" formControlName="instrument" />
+      </div>
+      @if (error('course')) {
+        <p class="form-message error" role="alert">{{ error('course') }}</p>
+      }
+      <div class="form-actions">
+        <button class="button" type="submit" [disabled]="saving() !== null">
+          {{
+            saving() === 'course'
+              ? 'Guardando…'
+              : editingCourse()
+                ? 'Guardar cambios'
+                : 'Publicar curso'
+          }}
+        </button>
+        @if (editingCourse()) {
+          <button class="text-button" type="button" (click)="cancelCourseEdit()">
+            Cancelar edición
+          </button>
+        }
+      </div>
+    </form>
+    <ul class="management-list" aria-label="Cursos publicados">
+      @for (item of courses(); track item.id) {
+        <li>
+          <div>
+            <strong>{{ item.title }}</strong
+            ><small>{{ item.startDate }} · {{ item.instrument }} · {{ item.price }} €</small>
+          </div>
+          <div class="record-actions">
+            <button type="button" (click)="editCourse(item)">Editar</button
+            ><button class="danger" type="button" (click)="deleteCourse(item)">Eliminar</button>
+          </div>
+        </li>
+      } @empty {
+        <li class="empty-row">No hay cursos publicados.</li>
+      }
+    </ul>
+  </details>
+
+  <details>
+    <summary><span>04</span> Galería</summary>
+    <p class="constraint">
+      Un álbum con fotografías no se puede eliminar. Elimina primero cada fotografía.
+    </p>
+    <div class="gallery-forms">
+      <form [formGroup]="albumForm" (ngSubmit)="saveAlbum()">
+        <h2>{{ editingAlbum() ? 'Editar álbum' : 'Crear álbum' }}</h2>
+        <div class="field">
+          <label for="album-name">Nombre</label><input id="album-name" formControlName="name" />
+        </div>
+        <div class="field">
+          <label for="album-description">Descripción</label
+          ><textarea id="album-description" formControlName="description"></textarea>
+        </div>
+        @if (error('album')) {
+          <p class="form-message error" role="alert">{{ error('album') }}</p>
+        }
+        <div class="form-actions">
+          <button class="button" type="submit" [disabled]="saving() !== null">
+            {{
+              saving() === 'album'
+                ? 'Guardando…'
+                : editingAlbum()
+                  ? 'Guardar cambios'
+                  : 'Crear álbum'
+            }}
+          </button>
+          @if (editingAlbum()) {
+            <button class="text-button" type="button" (click)="cancelAlbumEdit()">
+              Cancelar edición
+            </button>
+          }
+        </div>
+      </form>
+      <form [formGroup]="photoForm" (ngSubmit)="uploadPhoto()">
+        <h2>Añadir fotografía</h2>
+        <div class="field">
+          <label for="photo-album">Álbum</label
+          ><select id="photo-album" formControlName="albumId">
+            <option [ngValue]="0">Selecciona un álbum</option>
+            @for (album of albums(); track album.id) {
+              <option [ngValue]="album.id">{{ album.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="photo-caption">Pie de foto</label
+          ><input id="photo-caption" formControlName="caption" />
+        </div>
+        <div class="field">
+          <label for="photo-file">Imagen</label
+          ><input
+            id="photo-file"
+            type="file"
+            accept="image/png,image/jpeg"
+            (change)="choosePhoto($event)"
+          /><small>PNG o JPEG · máximo 20 MB</small>
+        </div>
+        @if (error('photo')) {
+          <p class="form-message error" role="alert">{{ error('photo') }}</p>
+        }
+        <button
+          class="button"
+          type="submit"
+          [disabled]="saving() !== null || albums().length === 0"
+        >
+          {{ saving() === 'photo' ? 'Subiendo…' : 'Añadir fotografía' }}
+        </button>
+      </form>
+    </div>
+    <ul class="album-list" aria-label="Álbumes">
+      @for (album of albums(); track album.id) {
+        <li>
+          <div class="album-heading">
+            <div>
+              <strong>{{ album.name }}</strong
+              ><small
+                >{{ album.description || 'Sin descripción' }} ·
+                {{ album.photos.length }} fotografías</small
+              >
+            </div>
+            <div class="record-actions">
+              <button type="button" (click)="editAlbum(album)" [attr.data-edit-album-id]="album.id">
+                Editar</button
+              ><button
+                class="danger"
+                type="button"
+                (click)="deleteAlbum(album)"
+                [attr.data-delete-album-id]="album.id"
+                [disabled]="album.photos.length > 0"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+          @if (album.photos.length > 0) {
+            <ul class="photo-list">
+              @for (photo of album.photos; track photo.id) {
+                <li>
+                  <span>{{ photo.caption || 'Fotografía sin pie' }}</span
+                  ><button class="danger" type="button" (click)="deletePhoto(album, photo)">
+                    Eliminar fotografía
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </li>
+      } @empty {
+        <li class="empty-row">No hay álbumes.</li>
+      }
+    </ul>
+  </details>
+</div>
+
+@if (loading()) {
+  <app-page-state kind="loading" loadingText="Consultando el contenido administrable…" />
+} @else if (failed()) {
+  <app-page-state
+    kind="error"
+    errorText="No se ha podido cargar el contenido administrable."
+    (retry)="load()"
+  />
+}

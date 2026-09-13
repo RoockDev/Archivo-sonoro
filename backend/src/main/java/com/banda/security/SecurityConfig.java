@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -22,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Clock;
 
 /**
  * JWT-in-httpOnly-cookie auth + double-submit CSRF, per design decision #9.
@@ -37,10 +39,13 @@ import java.io.IOException;
  */
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(PublicWriteRateLimitProperties.class)
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   JwtAuthFilter jwtAuthFilter,
+                                                   PublicWriteRateLimitFilter publicWriteRateLimitFilter) throws Exception {
         CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
 
         http
@@ -56,7 +61,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/activate", "/api/auth/login",
-                                "/api/auth/password-reset/complete").permitAll()
+                                "/api/auth/password-reset/request", "/api/auth/password-reset/complete").permitAll()
                         // Section 11: audit history is admin-panel-only. A finer-grained
                         // per-action permission gate (Phase 3/RBAC) refines this later; for
                         // now the base ADMIN role is the gate, same as every other endpoint.
@@ -80,7 +85,7 @@ public class SecurityConfig {
                         // covered by anyRequest().authenticated() below) for the same
                         // documentation clarity the other feature sections use.
                         .requestMatchers("/api/sheet-music/**").authenticated()
-                        // Section 6: collection management (currently create-only, see
+                        // Section 6: collection management (currently list/create, see
                         // CollectionController's own Javadoc) is admin-panel-only at this
                         // coarse level, same as groups/users -- CollectionService
                         // additionally requires the MANAGE_SHEET_MUSIC permission toggle
@@ -114,19 +119,20 @@ public class SecurityConfig {
                         .requestMatchers("/api/albums/**").hasRole("ADMIN")
                         .requestMatchers("/api/videos/**").hasRole("ADMIN")
                         .requestMatchers("/api/courses/**").hasRole("ADMIN")
-                        // Section 9 (Contact Form): the FIRST unauthenticated, public-facing
-                        // WRITE in this backend -- every permitAll() rule above (including
-                        // /api/auth/activate|login|password-reset/complete) is either
-                        // read-only or itself gated by a single-use token. A website visitor
-                        // has no JWT cookie at all. CSRF protection is deliberately NOT
-                        // exempted here -- same established pattern as the unauthenticated
-                        // /api/auth POSTs above: the visitor must first GET /api/auth/csrf
-                        // for a CSRF cookie/header pair before this POST is accepted. See
+                        // Section 9 (Contact Form): the public content-submission WRITE in
+                        // this backend. The auth writes above are credential/token operations;
+                        // password-reset/request additionally exposes only a neutral response
+                        // and never persists visitor-supplied content. A website visitor has
+                        // no JWT cookie at all. CSRF protection is deliberately NOT exempted
+                        // here -- same established pattern as the unauthenticated /api/auth
+                        // POSTs above: the visitor must first GET /api/auth/csrf for a CSRF
+                        // cookie/header pair before this POST is accepted. See
                         // ContactController/ContactService's own Javadoc for the rest of the
                         // unauthenticated-write reasoning (no Permission gate, no actor).
                         .requestMatchers(HttpMethod.POST, "/api/contact").permitAll()
                         .anyRequest().authenticated())
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
+                .addFilterAfter(publicWriteRateLimitFilter, CsrfCookieFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -135,6 +141,12 @@ public class SecurityConfig {
     @Bean
     public JwtAuthFilter jwtAuthFilter(JwtService jwtService, UserAccountRepository userAccountRepository) {
         return new JwtAuthFilter(jwtService, userAccountRepository);
+    }
+
+    @Bean
+    public PublicWriteRateLimitFilter publicWriteRateLimitFilter(PublicWriteRateLimitProperties properties,
+                                                                 Clock clock) {
+        return new PublicWriteRateLimitFilter(properties, clock);
     }
 
     @Bean

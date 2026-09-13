@@ -2,8 +2,10 @@ package com.banda.auth;
 
 import com.banda.auth.dto.ActivateAccountRequest;
 import com.banda.auth.dto.CompletePasswordResetRequest;
+import com.banda.auth.dto.CurrentUserResponse;
 import com.banda.auth.dto.LoginRequest;
 import com.banda.auth.dto.LoginResponse;
+import com.banda.auth.dto.RequestPasswordResetRequest;
 import com.banda.security.SecurityConstants;
 import com.banda.users.UserAccount;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,13 +32,16 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetResponseTimer passwordResetResponseTimer;
     private final Duration accessTokenTtl;
     private final boolean cookieSecure;
 
     public AuthController(AuthService authService,
+                           PasswordResetResponseTimer passwordResetResponseTimer,
                            @Value("${app.jwt.access-token-ttl}") Duration accessTokenTtl,
                            @Value("${app.security.cookie-secure:true}") boolean cookieSecure) {
         this.authService = authService;
+        this.passwordResetResponseTimer = passwordResetResponseTimer;
         this.accessTokenTtl = accessTokenTtl;
         this.cookieSecure = cookieSecure;
     }
@@ -50,6 +55,11 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void csrf() {
         // No-op body; the CsrfCookieFilter does the actual work for this request.
+    }
+
+    @GetMapping("/me")
+    public CurrentUserResponse currentUser(@AuthenticationPrincipal UserAccount user) {
+        return CurrentUserResponse.from(user);
     }
 
     @PostMapping("/activate")
@@ -69,6 +79,18 @@ public class AuthController {
     public ResponseEntity<Void> completePasswordReset(@Valid @RequestBody CompletePasswordResetRequest request) {
         authService.resetPassword(request.token(), request.newPassword());
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody RequestPasswordResetRequest request) {
+        passwordResetResponseTimer.run(() -> {
+            try {
+                authService.requestPasswordReset(request.email());
+            } catch (PasswordResetDeliveryException ignored) {
+                // SMTP state must not turn this endpoint into an account-enumeration oracle.
+            }
+        });
+        return ResponseEntity.accepted().build();
     }
 
     @PostMapping("/logout")

@@ -3,20 +3,29 @@ server:
 
 spring:
   application:
-    name: banda-app-backend
+    name: archivo-sonoro-backend
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/banda}
     username: ${DB_USERNAME:banda}
-    password: ${DB_PASSWORD:banda}
+    # REQUIRED. A repository-known database password remains dangerous even for a local
+    # default because accidental non-loopback publication would immediately expose it.
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
+
+  flyway:
+    validate-on-migrate: true
+    # Existing databases may opt in once, only after their schema has been verified to
+    # match V1 exactly. New/empty databases and normal startups must keep this false.
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+    baseline-version: 1
 
   mail:
     # REQUIRED, no default -- see app.jwt.secret's comment below for the established
@@ -34,12 +43,10 @@ spring:
       mail:
         smtp:
           # ContactService#notifyAdmins calls EmailSender#send synchronously, per admin, on
-          # the Tomcat request thread -- POST /api/contact is unauthenticated and has no
-          # rate limiting. Without an explicit bound here, a stalled/unresponsive SMTP host
-          # can hang a request thread indefinitely; a handful of concurrent submissions
-          # against a hung SMTP target could exhaust the whole worker pool (a full outage,
-          # not just a degraded contact form). 5s per phase bounds the worst case to
-          # N admins x ~15s per request instead of an indefinite hang.
+          # the Tomcat request thread. The public-write rate limit bounds accepted request
+          # frequency, while these timeouts bound each accepted request if SMTP stalls.
+          # 5s per phase keeps the worst case to N admins x ~15s instead of an indefinite
+          # hang that could exhaust the worker pool.
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
@@ -51,10 +58,10 @@ spring:
       # a single request exhaust heap. 20MB comfortably covers a real scanned sheet-music PDF
       # (a multi-page scan at a reasonable DPI is typically a few MB; 20MB leaves headroom for
       # a dense/high-resolution scan without being large enough to be a practical DoS vector
-      # for this app's scale). max-request-size matches since a request carries exactly one
-      # file part today.
+      # for this app's scale). The request cap includes multipart boundaries and metadata, so
+      # it needs a bounded 1MB envelope above the maximum file payload.
       max-file-size: 20MB
-      max-request-size: 20MB
+      max-request-size: 21MB
 
 app:
   jwt:
@@ -69,15 +76,37 @@ app:
   auth:
     activation-token-ttl: ${ACTIVATION_TOKEN_TTL:P1D}
     reset-token-ttl: ${RESET_TOKEN_TTL:PT1H}
+    # Combined with the per-client reset limit below, this makes the fast unknown-account
+    # path less useful as a timing oracle. Deployments should keep this above normal SMTP
+    # delivery latency; the test profile disables the intentional delay.
+    password-reset-min-response-time: ${PASSWORD_RESET_MIN_RESPONSE_TIME:PT1S}
+  frontend:
+    # REQUIRED, no default. Password-reset emails must point at the real installation
+    # frontend, never a hardcoded band/domain. PasswordResetLinkFactory fails startup for
+    # malformed/non-origin values and requires HTTPS except for local loopback development.
+    base-url: ${FRONTEND_BASE_URL}
   security:
     # httpOnly+Secure+SameSite cookie flag (design decision #9). Override to false only
     # for plain-HTTP local dev without TLS (see README) — never in a real deployment.
     cookie-secure: ${APP_SECURITY_COOKIE_SECURE:true}
+    public-write-rate-limit:
+      login:
+        requests: ${LOGIN_RATE_LIMIT_REQUESTS:10}
+        window: ${LOGIN_RATE_LIMIT_WINDOW:PT1M}
+      password-reset:
+        requests: ${PASSWORD_RESET_RATE_LIMIT_REQUESTS:5}
+        window: ${PASSWORD_RESET_RATE_LIMIT_WINDOW:PT15M}
+      token-redemption:
+        requests: ${TOKEN_REDEMPTION_RATE_LIMIT_REQUESTS:10}
+        window: ${TOKEN_REDEMPTION_RATE_LIMIT_WINDOW:PT15M}
+      contact:
+        requests: ${CONTACT_RATE_LIMIT_REQUESTS:5}
+        window: ${CONTACT_RATE_LIMIT_WINDOW:PT10M}
+      max-tracked-clients: ${PUBLIC_WRITE_RATE_LIMIT_MAX_CLIENTS:10000}
   file-storage:
-    # Design decision #3: local disk on a persistent volume (decision #4), deliberately
-    # outside src/main/resources/static or any other classpath location Spring Boot
-    # auto-serves — never static-served, per Section 5's explicit requirement.
-    base-dir: ${APP_FILE_STORAGE_BASE_DIR:/data/files}
+    # Durable local storage for personal development, deliberately outside the application
+    # classpath and static resources. Deployments can override it with an external directory.
+    base-dir: "${APP_FILE_STORAGE_BASE_DIR:${user.home}/.music-band-app/files}"
   mail:
     # REQUIRED, no default -- unlike spring.mail.host/port above, this value isn't a secret,
     # but the SAME silent-blackhole risk applies: a prod deployment that forgets to set it

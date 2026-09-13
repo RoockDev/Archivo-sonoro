@@ -1,0 +1,165 @@
+<header class="admin-heading">
+  <div>
+    <p class="eyebrow">Administración</p>
+    <h1>Calendario</h1>
+  </div>
+  <p>
+    Crea eventos internos o públicos, revisa quién tendrá acceso y actualiza su alcance con control
+    de concurrencia.
+  </p>
+</header>
+
+<section class="admin-form" aria-labelledby="event-form-title">
+  <div>
+    <p class="section-index">{{ editingId() === null ? 'Nuevo evento' : 'Edición' }}</p>
+    <h2 id="event-form-title">
+      {{ editingId() === null ? 'Programar una fecha' : 'Actualizar el evento' }}
+    </h2>
+  </div>
+  <form [formGroup]="eventForm" (ngSubmit)="submit()">
+    <div class="field">
+      <label for="event-title">Título</label><input id="event-title" formControlName="title" />
+    </div>
+    <div class="field">
+      <label for="event-description">Descripción</label
+      ><textarea id="event-description" formControlName="description"></textarea>
+    </div>
+    <div class="field">
+      <label for="event-location">Lugar</label
+      ><input id="event-location" formControlName="location" />
+    </div>
+    <div class="field">
+      <label for="event-start">Fecha y hora</label
+      ><input id="event-start" type="datetime-local" formControlName="startsAt" />
+    </div>
+    <div class="checks">
+      <label
+        ><input type="checkbox" formControlName="isPublic" /> Visible en la agenda pública</label
+      >
+      <label
+        ><input type="checkbox" formControlName="allScope" (change)="globalScopeChanged()" />
+        Visible para toda la banda</label
+      >
+    </div>
+    <fieldset class="scope-fieldset" [disabled]="eventForm.controls.allScope.value">
+      <legend>Destinatarios con acceso interno</legend>
+      <div class="scope-grid">
+        <div>
+          <h3>Grupos</h3>
+          @if (targets().groups.length === 0) {
+            <p class="scope-note">No hay grupos disponibles.</p>
+          } @else {
+            <div class="target-list">
+              @for (target of targets().groups; track target.id) {
+                <label>
+                  <input
+                    type="checkbox"
+                    [checked]="targetSelected('groupIds', target.id)"
+                    (change)="toggleTarget('groupIds', target.id, $any($event.target).checked)"
+                  />
+                  <span
+                    >{{ target.label }} <small>#{{ target.id }}</small></span
+                  >
+                </label>
+              }
+            </div>
+          }
+        </div>
+        <div>
+          <h3>Músicos</h3>
+          @if (targets().musicians.length === 0) {
+            <p class="scope-note">No hay músicos disponibles.</p>
+          } @else {
+            <div class="target-list">
+              @for (target of targets().musicians; track target.id) {
+                <label>
+                  <input
+                    type="checkbox"
+                    [checked]="targetSelected('musicianIds', target.id)"
+                    (change)="toggleTarget('musicianIds', target.id, $any($event.target).checked)"
+                  />
+                  <span
+                    >{{ target.label }} <small>#{{ target.id }}</small></span
+                  >
+                </label>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </fieldset>
+    <div class="scope-impact" role="status">
+      <strong>Impacto antes de guardar</strong>
+      <p>{{ scopeImpact() }}</p>
+    </div>
+    @if (eventForm.hasError('ambiguousScope')) {
+      <p class="form-message error" role="alert">
+        El alcance global no puede combinarse con grupos o músicos concretos.
+      </p>
+    }
+    @if (formError()) {
+      <p class="form-message error" role="alert">{{ formError() }}</p>
+    }
+    <div class="form-actions">
+      <button class="button" type="submit" [disabled]="saving()">
+        {{ saving() ? 'Guardando…' : editingId() === null ? 'Crear evento' : 'Guardar cambios' }}
+      </button>
+      @if (editingId() !== null) {
+        <button class="button secondary" type="button" (click)="resetForm()">
+          Cancelar edición
+        </button>
+      }
+    </div>
+  </form>
+</section>
+
+@if (actionError()) {
+  <p class="form-message error page-message" role="alert">{{ actionError() }}</p>
+}
+@if (loading()) {
+  <app-page-state kind="loading" loadingText="Consultando el calendario completo…" />
+} @else if (failed()) {
+  <app-page-state
+    kind="error"
+    errorText="No se puede consultar el calendario. Comprueba que tengas permiso para gestionar eventos."
+    (retry)="load()"
+  />
+} @else if (events().length === 0) {
+  <app-page-state kind="empty" emptyText="Todavía no hay eventos programados." />
+} @else {
+  <ul class="event-list">
+    @for (event of events(); track event.id) {
+      <li [class.cancelled]="event.status === 'CANCELLED'">
+        <time [attr.datetime]="event.startsAt"
+          ><strong>{{ event.startsAt | date: 'dd' }}</strong
+          ><span>{{ event.startsAt | date: 'MMM · HH:mm' }}</span></time
+        >
+        <div>
+          <p class="record-meta">
+            ID {{ event.id }} · {{ event.isPublic ? 'Público' : 'Interno' }} ·
+            {{
+              event.allScope
+                ? 'Toda la banda'
+                : event.groupIds.length + ' grupos · ' + event.musicianIds.length + ' músicos'
+            }}
+          </p>
+          <h2>{{ event.title }}</h2>
+          <p>{{ event.location || 'Lugar por confirmar' }}</p>
+        </div>
+        <div class="record-actions">
+          <button class="text-button" type="button" (click)="edit(event)">Editar</button>
+          @if (event.status !== 'CANCELLED') {
+            <button
+              class="text-button danger"
+              type="button"
+              (click)="cancel(event)"
+              [disabled]="actionId() !== null"
+            >
+              {{ actionId() === event.id ? 'Cancelando…' : 'Cancelar' }}
+            </button>
+          }
+        </div>
+      </li>
+    }
+  </ul>
+}

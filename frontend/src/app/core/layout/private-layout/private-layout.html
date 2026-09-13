@@ -1,0 +1,42 @@
+<a class="skip-link" href="#private-content">Saltar al contenido</a>
+<div class="private-shell">
+  <aside>
+    <a class="private-brand" routerLink="/">
+      <img [src]="brand.logoUrl" alt="" width="46" height="46" />
+      <strong>{{ brand.name }}</strong>
+    </a>
+    <nav aria-label="Área privada">
+      <a
+        [routerLink]="session()?.role === 'ADMIN' ? '/administracion' : '/musico'"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        >Inicio</a
+      >
+      @if (session()?.role === 'MUSICIAN') {
+        <a routerLink="/musico/agenda" routerLinkActive="active">Agenda</a>
+        <a routerLink="/musico/biblioteca" routerLinkActive="active">Partituras</a>
+      } @else {
+        <a routerLink="/administracion/usuarios" routerLinkActive="active">Usuarios</a>
+        <a routerLink="/administracion/grupos" routerLinkActive="active">Grupos</a>
+        <a routerLink="/administracion/calendario" routerLinkActive="active">Calendario</a>
+        <a routerLink="/administracion/archivo" routerLinkActive="active">Archivo</a>
+        <a routerLink="/administracion/contenido" routerLinkActive="active">Contenido</a>
+        <a routerLink="/administracion/auditoria" routerLinkActive="active">Auditoría</a>
+      }
+      <a routerLink="/">Web pública</a>
+    </nav>
+    <div class="account-summary">
+      <span>{{ session()?.role === 'ADMIN' ? 'Administración' : 'Área de músico' }}</span>
+      <strong>{{ session()?.email }}</strong>
+      <button type="button" (click)="logout()" [disabled]="signingOut()">
+        {{ signingOut() ? 'Cerrando…' : 'Cerrar sesión' }}
+      </button>
+      @if (signOutFailed()) {
+        <p role="alert">No se ha podido cerrar la sesión. Inténtalo de nuevo.</p>
+      }
+    </div>
+  </aside>
+  <main id="private-content" tabindex="-1">
+    <router-outlet />
+  </main>
+</div>

@@ -1,0 +1,64 @@
+<header class="private-heading">
+  <p class="eyebrow">Sesión activa</p>
+  <h1>{{ session()?.role === 'ADMIN' ? 'Administración' : 'Área de músico' }}</h1>
+  <p>
+    Has accedido como <strong>{{ session()?.email }}</strong
+    >.
+  </p>
+</header>
+
+@if (session()?.role === 'MUSICIAN') {
+  <section class="private-actions" aria-labelledby="private-actions-title">
+    <p class="section-index">Tu espacio de trabajo</p>
+    <h2 id="private-actions-title">Todo lo necesario para el próximo ensayo.</h2>
+    <div class="action-grid">
+      <a routerLink="/musico/agenda">
+        <span>01</span>
+        <h3>Agenda interna</h3>
+        <p>Consulta ensayos, actuaciones, horarios, lugares e indicaciones.</p>
+      </a>
+      <a routerLink="/musico/biblioteca">
+        <span>02</span>
+        <h3>Biblioteca</h3>
+        <p>Encuentra y descarga las partituras asignadas a tu cuenta y tus grupos.</p>
+      </a>
+    </div>
+  </section>
+} @else {
+  <section class="private-actions" aria-labelledby="admin-actions-title">
+    <p class="section-index">Gestión de la banda</p>
+    <h2 id="admin-actions-title">Personas y agrupaciones, en un único espacio.</h2>
+    <div class="action-grid">
+      <a routerLink="/administracion/usuarios">
+        <span>01</span>
+        <h3>Usuarios</h3>
+        <p>Crea cuentas, actualiza datos y desactiva accesos conservando el historial.</p>
+      </a>
+      <a routerLink="/administracion/grupos">
+        <span>02</span>
+        <h3>Grupos</h3>
+        <p>Organiza agrupaciones y asigna músicos mediante operaciones auditadas.</p>
+      </a>
+      <a routerLink="/administracion/calendario">
+        <span>03</span>
+        <h3>Calendario</h3>
+        <p>Programa fechas internas o públicas y conserva las cancelaciones.</p>
+      </a>
+      <a routerLink="/administracion/archivo">
+        <span>04</span>
+        <h3>Archivo</h3>
+        <p>Crea colecciones y sube partituras con su alcance de acceso.</p>
+      </a>
+      <a routerLink="/administracion/contenido">
+        <span>05</span>
+        <h3>Contenido</h3>
+        <p>Publica noticias, vídeos, cursos, álbumes y fotografías.</p>
+      </a>
+      <a routerLink="/administracion/auditoria">
+        <span>06</span>
+        <h3>Auditoría</h3>
+        <p>Consulta el historial de una entidad concreta y sus actores.</p>
+      </a>
+    </div>
+  </section>
+}
